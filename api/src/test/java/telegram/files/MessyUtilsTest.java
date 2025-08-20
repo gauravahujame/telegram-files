@@ -79,6 +79,39 @@ class MessyUtilsTest {
                 "MD5 comparison should return false if one of the files is missing!");
     }
 
+    @Test
+    void testBitStateOperations() {
+        // DESIGN NOTE: Test BitState operations with the corrected bit position constants
+        MessyUtils.BitState bitState = new MessyUtils.BitState(0);
+        
+        // Test enabling states using bit positions (0, 1, 2, 3)
+        bitState.enableState(0); // Enable bit 0
+        assertTrue(bitState.isStateEnabled(0), "Bit 0 should be enabled");
+        assertEquals(1, bitState.getState(), "State should be 1 (binary: 1)");
+        
+        bitState.enableState(1); // Enable bit 1
+        assertTrue(bitState.isStateEnabled(1), "Bit 1 should be enabled");
+        assertEquals(3, bitState.getState(), "State should be 3 (binary: 11)");
+        
+        bitState.enableState(2); // Enable bit 2
+        assertTrue(bitState.isStateEnabled(2), "Bit 2 should be enabled");
+        assertEquals(7, bitState.getState(), "State should be 7 (binary: 111)");
+        
+        // Test disabling states
+        bitState.disableState(1); // Disable bit 1
+        assertFalse(bitState.isStateEnabled(1), "Bit 1 should be disabled");
+        assertEquals(5, bitState.getState(), "State should be 5 (binary: 101)");
+        
+        // Test toggle operation
+        bitState.toggleState(3); // Toggle bit 3
+        assertTrue(bitState.isStateEnabled(3), "Bit 3 should be enabled after toggle");
+        assertEquals(13, bitState.getState(), "State should be 13 (binary: 1101)");
+        
+        bitState.toggleState(3); // Toggle bit 3 again
+        assertFalse(bitState.isStateEnabled(3), "Bit 3 should be disabled after second toggle");
+        assertEquals(5, bitState.getState(), "State should be 5 (binary: 101)");
+    }
+
     private String calculateExpectedMD5(File file) throws Exception {
         MessageDigest md = MessageDigest.getInstance("MD5");
         byte[] fileBytes = Files.readAllBytes(file.toPath());

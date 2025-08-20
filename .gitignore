@@ -9,6 +9,7 @@ out/
 /app/
 /app-test/
 
+.env
 **/*.log
 api.log.lck
 **/.env.*
