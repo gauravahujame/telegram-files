@@ -81,6 +81,10 @@ public record FileRecord(int id, //file id will change
             """;
 
     public static final TreeMap<Version, String[]> MIGRATIONS = new TreeMap<>(MapUtil.ofEntries(
+            MapUtil.entry(new Version("0.1.5"), new String[]{
+                    "ALTER TABLE file_record ADD COLUMN download_status VARCHAR(255) DEFAULT 'idle';",
+                    "ALTER TABLE file_record ADD COLUMN downloaded_size BIGINT DEFAULT 0;",
+            }),
             MapUtil.entry(new Version("0.1.7"), new String[]{
                     "ALTER TABLE file_record ADD COLUMN start_date BIGINT;",
                     "ALTER TABLE file_record ADD COLUMN completion_date BIGINT;",
