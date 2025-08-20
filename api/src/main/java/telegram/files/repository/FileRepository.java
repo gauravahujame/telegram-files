@@ -54,4 +54,9 @@ public interface FileRepository {
     Future<Void> updateTags(String uniqueId, String tags);
 
     Future<Void> deleteByUniqueId(String uniqueId);
+
+    // DESIGN NOTE: Added methods to handle stuck downloads recovery
+    Future<Integer> resetAllDownloadingToIdle();
+    
+    Future<Integer> resetStaleDownloadsToIdle(long staleThresholdMinutes);
 }

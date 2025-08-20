@@ -732,4 +732,49 @@ public class FileRepositoryImpl extends AbstractSqlRepository implements FileRep
                 )
                 .mapEmpty();
     }
+
+    @Override
+    public Future<Integer> resetAllDownloadingToIdle() {
+        // DESIGN NOTE: Reset all 'downloading' status to 'idle' to recover from stuck downloads
+        log.info("Resetting all 'downloading' files to 'idle' status for recovery");
+        return SqlTemplate
+                .forUpdate(sqlClient, """
+                        UPDATE file_record 
+                        SET download_status = 'idle', 
+                            downloaded_size = 0 
+                        WHERE download_status = 'downloading'
+                        """)
+                .execute(Map.of())
+                .map(result -> {
+                    int updatedRows = result.rowCount();
+                    log.info("Reset {} stuck downloading files to idle status", updatedRows);
+                    return updatedRows;
+                })
+                .onFailure(err -> log.error("Failed to reset downloading files to idle: %s".formatted(err.getMessage())));
+    }
+
+    @Override
+    public Future<Integer> resetStaleDownloadsToIdle(long staleThresholdMinutes) {
+        // DESIGN NOTE: Reset downloads that haven't been updated recently (watchdog functionality)
+        long staleThreshold = System.currentTimeMillis() - (staleThresholdMinutes * 60 * 1000);
+        log.debug("Resetting stale downloads older than {} minutes to idle", staleThresholdMinutes);
+        
+        return SqlTemplate
+                .forUpdate(sqlClient, """
+                        UPDATE file_record 
+                        SET download_status = 'idle', 
+                            downloaded_size = 0 
+                        WHERE download_status = 'downloading' 
+                          AND (start_date IS NULL OR start_date < #{staleThreshold})
+                        """)
+                .execute(Map.of("staleThreshold", staleThreshold))
+                .map(result -> {
+                    int updatedRows = result.rowCount();
+                    if (updatedRows > 0) {
+                        log.info("Reset {} stale downloading files to idle status", updatedRows);
+                    }
+                    return updatedRows;
+                })
+                .onFailure(err -> log.error("Failed to reset stale downloads: %s".formatted(err.getMessage())));
+    }
 }
