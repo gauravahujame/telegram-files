@@ -79,14 +79,66 @@ public class DataVerticle extends AbstractVerticle {
                 })
                 .compose(r ->
                         settingRepository.createOrUpdate(SettingKey.version.name(), Start.VERSION))
-                .onSuccess(r -> {
-                    log.info("Database {} initialized.", Config.DB_TYPE);
+                // SAFETY: Some legacy DBs (e.g., labeled 0.1.6) may miss columns required by recovery.
+                // Ensure critical columns exist before we run startup recovery queries that touch them.
+                .compose(r -> ensureFileRecordCoreColumns())
+                .compose(r -> {
+                    // DESIGN NOTE: Reset stuck downloads on startup to prevent deadlocks
+                    log.info("Performing startup recovery - resetting stuck downloads");
+                    return fileRepository.resetAllDownloadingToIdle();
+                })
+                .onSuccess(resetCount -> {
+                    log.info("Database {} initialized. Reset {} stuck downloads on startup.", Config.DB_TYPE, resetCount);
                     stopPromise.complete();
                 })
                 .onFailure(err -> {
                     log.error("Failed to initialize database: %s".formatted(err.getMessage()));
                     stopPromise.fail(err);
                 });
+    }
+
+    private Future<Void> ensureFileRecordCoreColumns() {
+        if (Config.isSqlite()) {
+            return pool
+                    .query("PRAGMA table_info(file_record);")
+                    .execute()
+                    .compose(rs -> {
+                        java.util.Set<String> cols = new java.util.HashSet<>();
+                        rs.forEach(row -> cols.add(row.getString("name")));
+                        java.util.List<Future<?>> ops = new java.util.ArrayList<>();
+                        if (!cols.contains("download_status")) {
+                            ops.add(pool.query("ALTER TABLE file_record ADD COLUMN download_status VARCHAR(255) DEFAULT 'idle';").execute());
+                        }
+                        if (!cols.contains("downloaded_size")) {
+                            ops.add(pool.query("ALTER TABLE file_record ADD COLUMN downloaded_size BIGINT DEFAULT 0;").execute());
+                        }
+                        if (ops.isEmpty()) {
+                            return Future.succeededFuture();
+                        }
+                        return Future
+                                .all(ops)
+                                .onFailure(err -> log.error("Failed ensuring file_record columns (sqlite): %s".formatted(err.getMessage())))
+                                .mapEmpty();
+                    });
+        } else if (Config.isPostgres()) {
+            return Future
+                    .all(
+                            pool.query("ALTER TABLE file_record ADD COLUMN IF NOT EXISTS download_status VARCHAR(255) DEFAULT 'idle';").execute(),
+                            pool.query("ALTER TABLE file_record ADD COLUMN IF NOT EXISTS downloaded_size BIGINT DEFAULT 0;").execute()
+                    )
+                    .onFailure(err -> log.error("Failed ensuring file_record columns (postgres): %s".formatted(err.getMessage())))
+                    .mapEmpty();
+        } else if (Config.isMysql()) {
+            return Future
+                    .all(
+                            pool.query("ALTER TABLE file_record ADD COLUMN IF NOT EXISTS download_status VARCHAR(255) DEFAULT 'idle';").execute(),
+                            pool.query("ALTER TABLE file_record ADD COLUMN IF NOT EXISTS downloaded_size BIGINT DEFAULT 0;").execute()
+                    )
+                    .onFailure(err -> log.error("Failed ensuring file_record columns (mysql): %s".formatted(err.getMessage())))
+                    .mapEmpty();
+        } else {
+            return Future.succeededFuture();
+        }
     }
 
     @Override
