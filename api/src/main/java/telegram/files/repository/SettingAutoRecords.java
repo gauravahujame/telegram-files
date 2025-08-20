@@ -13,13 +13,15 @@ import java.util.stream.Collectors;
 public class SettingAutoRecords {
     public List<Automation> automations;
 
-    public static final int HISTORY_PRELOAD_STATE = 1;
+    // DESIGN NOTE: Changed from values (1,2,3,4) to bit positions (0,1,2,3) to fix BitState usage
+    // BitState expects bit positions, not bit values
+    public static final int HISTORY_PRELOAD_STATE = 0;
 
-    public static final int HISTORY_DOWNLOAD_STATE = 2;
+    public static final int HISTORY_DOWNLOAD_STATE = 1;
 
-    public static final int HISTORY_DOWNLOAD_SCAN_STATE = 3;
+    public static final int HISTORY_DOWNLOAD_SCAN_STATE = 2;
 
-    public static final int HISTORY_TRANSFER_STATE = 4;
+    public static final int HISTORY_TRANSFER_STATE = 3;
 
     public static class Automation {
         public long telegramId;
